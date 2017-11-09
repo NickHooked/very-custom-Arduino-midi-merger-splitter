@@ -1,7 +1,5 @@
 #define BAUDRATE 3125;
 #define DEBOUNCE 1500;
-
-struct bassSerial = Serial1;
    
 //display leds
 int bassToBassLedPin = 5;
