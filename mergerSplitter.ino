@@ -1,5 +1,7 @@
 #define BAUDRATE 3125;
 #define DEBOUNCE 1500;
+
+struct bassSerial = Serial1;
    
 //display leds
 int bassToBassLedPin = 5;
@@ -70,6 +72,12 @@ void setPins(){
 	pinMode(keyNoteBtn.pin, INPUT_PULLUP);
 }
 
+void setup(){
+	Serial1.begin(31250);
+	Serial2.begin(31250);
+	setPins();
+}
+
 void changeBassPriority(){
 	if(++bassPrioritySetting == 2){//set the current bassPrioritySetting + 1 and if that is 2 then reset to 0 because this only has 2 states
 		bassPrioritySetting = 0;
@@ -112,25 +120,25 @@ void handleKeyPriorityLeds(){
 	}
 }
 
-void handleButton(button){
-	button.pressed = false;
-	button.value = digitalRead(button.pin); 
-	if(button.debounce == 0){ //button has been off
-		if(button.value == LOW){ //button is on now
-			button.debounce = DEBOUNCE;
-			button.pressed = true;
+void handleButton(struct button btn){
+	btn.pressed = false;
+	btn.value = digitalRead(btn.pin); 
+	if(btn.debounce == 0){ //button has been off
+		if(btn.value == LOW){ //button is on now
+			btn.debounce = DEBOUNCE;
+			btn.pressed = true;
 		}
 		else{
-			if(button.value == HIGH){ //button is off now
-				--button.debounce; //handle debounce
+			if(btn.value == HIGH){ //button is off now
+				--btn.debounce; //handle debounce
 			}
 			else{ //button is still on
-				button.debounce = DEBOUNCE;
+				btn.debounce = DEBOUNCE;
 			}
 		}
 	}
 
-	return button;
+	return btn;
 }
 
 void handleLed(pin, state){
@@ -190,73 +198,49 @@ void handleSettings(){ //handle what buttons are pressed and what settings shoul
 	}
 }
 
-void checkBassMidi(){
+void checkMidi(HardwareSerial &serial){
 	do{
-		if (Serial1.available()){
-			return midiNote {
-				Serial1.read(),//read the first byte which is the command(noteOn/noteOff)
-				Serial1.read(),//read the seccond byte which is the note value
-				Serial1.read()//read the last byte which is the velocity
+		if (serial.available()){
+			return midi {
+				serial.read(),//read the first byte which is the command(noteOn/noteOff)
+				serial.read(),//read the seccond byte which is the note value
+				serial.read()//read the last byte which is the velocity
 			}
 		}
 	}
-	while(Serial1.available() > 2)
-	return midiNote {0,0,0};	
+	while(serial.available() > 2)
+	return midi {0,0,0};	
 }
 
-void sendBassMidi(midi){
-	if(bassToBass){
-		Serial1.write(midi.command);
-		Serial1.write(midi.note);
-		Serial1.write(midi.velocity);
-	}
-
-	if(bassToKey){
-		Serial2.write(midi.command);
-		Serial2.write(midi.note);
-		Serial2.write(midi.velocity);
-	}
-}
-
-void checkKeyMidi(){
-	do{
-		if (Serial2.available()){
-			return midiNote {
-				Serial2.read(),//read the first byte which is the command(noteOn/noteOff)
-				Serial2.read(),//read the seccond byte which is the note value
-				Serial2.read()//read the last byte which is the velocity
-			}
-		}
-	}
-	while(Serial2.available() > 2)
-	return midiNote {0,0,0};	
-}
-
-void sendKeyMidi(midi){
-	if(keyToBass){
-		Serial1.write(midi.command);
-		Serial1.write(midi.note);
-		Serial1.write(midi.velocity);
-	}
-
-	if(keyToKey){
-		Serial2.write(midi.command);
-		Serial2.write(midi.note);
-		Serial2.write(midi.velocity);
-	}
+void sendMidi(HardwareSerial &serial, struct midi midi){
+	serial.write(midi.command);
+	serial.write(midi.note);
+	serial.write(midi.velocity);
 }
 
 void handleMidi(){
 	//first set up the routing, we'll worry about the priority later
 
-	bassMidi = checkBassMidi(); //check the bass midi and return it if there is a note
+	bassMidi = checkMidi(Serial1); //check the bass midi and return it if there is a note
 	if(bassMidi.command != 0){ //if there is midi comming in from bass
-		sendBassMidi(bassMidi); //send it to the correct places
+		if(bassToBass){
+			sendMidi(Serial1, bassMidi);
+		}
+
+		if(bassToKey){
+			sendMidi(Serial2, bassMidi);
+		}
 	}
 
-	keyMidi = checkKeyMidi(); //check the bass midi and return it if there is a note
+	keyMidi = checkMidi(Serial2); //check the bass midi and return it if there is a note
 	if(keyMidi.command != 0){ //if there is midi comming in from bass
-		sendKeyMidi(keyMidi); //send it to the correct places
+		if(keyToBass){
+			sendMidi(Serial1, keyMidi); //send the key midi to the bass
+		}
+
+		if(keyToKey){
+			sendMidi(Serial2, keyMidi); // send de key midi to the keys
+		}
 	}
 }
 
@@ -267,10 +251,6 @@ void handleOrganAudio(){
 	else{
 		//the opposite of the if, stop the audio from getting trough	
 	}
-}
-
-void setup(){
-	setPins();
 }
 
 void loop(){
