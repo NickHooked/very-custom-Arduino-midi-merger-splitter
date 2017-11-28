@@ -1,5 +1,12 @@
 #define BAUDRATE 3125;
 #define DEBOUNCE 1500;
+
+//midi settings
+int noteOn = 144; //channel 1 note on
+int noteOff = 128; //channel 1 note off
+
+int bassMidiCh = 1;
+int keyMidiCh = 2;
    
 //display leds
 int bassToBassLedPin = 5;
@@ -210,10 +217,22 @@ void checkMidi(HardwareSerial &serial){
 	return midi {0,0,0};	
 }
 
-void sendMidi(HardwareSerial &serial, struct midi midi){
+void sendMidi(HardwareSerial &serial, struct midiNote midi){
 	serial.write(midi.command);
 	serial.write(midi.note);
 	serial.write(midi.velocity);
+}
+
+void handleMidiNote(struct midiNote midi, int channel){
+	if(midi.command >= 144 && midi.command <= 159){ //if it is a midi on note on any of the channels
+		midi.command = noteOn  + (channel - 1);
+	}
+
+	if(midi.command >= 128 && midi.command <= 143){ //if it is a midi off note on any of the channels
+		midi.command = noteOff  + (channel - 1);
+	}
+
+	return midi;
 }
 
 void handleMidi(){
@@ -222,22 +241,22 @@ void handleMidi(){
 	bassMidi = checkMidi(Serial1); //check the bass midi and return it if there is a note
 	if(bassMidi.command != 0){ //if there is midi comming in from bass
 		if(bassToBass){
-			sendMidi(Serial1, bassMidi);
+			sendMidi(Serial1, handleMidiNote(bassMidi, bassMidiCh));
 		}
 
 		if(bassToKey){
-			sendMidi(Serial2, bassMidi);
+			sendMidi(Serial2, handleMidiNote(bassMidi, keyMidiCh));
 		}
 	}
 
 	keyMidi = checkMidi(Serial2); //check the bass midi and return it if there is a note
 	if(keyMidi.command != 0){ //if there is midi comming in from bass
 		if(keyToBass){
-			sendMidi(Serial1, keyMidi); //send the key midi to the bass
+			sendMidi(Serial1, handleMidiNote(keyMidi, bassMidiCh)); //send the key midi to the bass
 		}
 
 		if(keyToKey){
-			sendMidi(Serial2, keyMidi); // send de key midi to the keys
+			sendMidi(Serial2, handleMidiNote(keyMidi, keyMidiCh)); // send de key midi to the keys
 		}
 	}
 }
