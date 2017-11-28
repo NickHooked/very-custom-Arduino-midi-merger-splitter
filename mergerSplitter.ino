@@ -54,6 +54,10 @@ struct midiNote{
   int velocity;
 };
 
+struct midiNote lowestNote = {0, 0, 0};
+int bassPrioCycles = 12;
+int bassPrioCycle = 0;
+
 void setPins(){
 	pinMode(bassToBassLedPin, OUTPUT);
 	pinMode(bassToKeyLedPin, OUTPUT);
@@ -235,18 +239,39 @@ void handleMidiNote(struct midiNote midi, int channel){
 	return midi;
 }
 
+void handleBassMidi(struct midiNote midi){
+	if(bassPrioritySetting){
+		if(++bassPrioCycle =< bassPrioCycles){
+			if(midi.note < lowestNote.note || lowestNote.note == 0){
+				lowestNote = midi;
+			}
+		}
+		else{
+			sendMidi(Serial1, handleMidiNote(lowestNote, bassMidiCh));
+			lowestNote = {0, 0, 0};
+			bassPrioCycle = 0;
+		}
+	}
+	else{
+		sendMidi(Serial1, handleMidiNote(midi, bassMidiCh));
+	}
+}
+
 void handleMidi(){
 	//first set up the routing, we'll worry about the priority later
 
 	bassMidi = checkMidi(Serial1); //check the bass midi and return it if there is a note
 	if(bassMidi.command != 0){ //if there is midi comming in from bass
+
 		if(bassToBass){
-			sendMidi(Serial1, handleMidiNote(bassMidi, bassMidiCh));
+			handleBassMidi(bassMidi);
 		}
 
 		if(bassToKey){
 			sendMidi(Serial2, handleMidiNote(bassMidi, keyMidiCh));
 		}
+
+
 	}
 
 	keyMidi = checkMidi(Serial2); //check the bass midi and return it if there is a note
